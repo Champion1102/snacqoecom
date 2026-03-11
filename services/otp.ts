@@ -1,0 +1,71 @@
+import { prisma } from "@/lib/prisma";
+
+const OTP_EXPIRY_MINUTES = 10;
+const RATE_LIMIT_COUNT = 5;
+const RATE_LIMIT_WINDOW_MINUTES = 15;
+const RESEND_COOLDOWN_SECONDS = 60;
+
+function generateCode(): string {
+  return Math.floor(100_000 + Math.random() * 900_000).toString();
+}
+
+export async function createAndSendOtp(
+  email: string,
+  sendEmail: (email: string, code: string) => Promise<void>
+): Promise<{ success: true } | { success: false; message: string }> {
+  const normalized = email.trim().toLowerCase();
+  if (!normalized) return { success: false, message: "Email is required." };
+
+  const cooldownSince = new Date(Date.now() - RESEND_COOLDOWN_SECONDS * 1000);
+  const lastOtp = await prisma.otp.findFirst({
+    where: { email: normalized, createdAt: { gte: cooldownSince } },
+    orderBy: { createdAt: "desc" },
+    select: { createdAt: true },
+  });
+
+  if (lastOtp) {
+    const waitSec = Math.ceil(
+      RESEND_COOLDOWN_SECONDS - (Date.now() - lastOtp.createdAt.getTime()) / 1000
+    );
+    return {
+      success: false,
+      message:
+        waitSec > 0
+          ? `Please wait ${waitSec} seconds before requesting another OTP.`
+          : "Please wait a moment before requesting another OTP.",
+    };
+  }
+
+  const windowStart = new Date(Date.now() - RATE_LIMIT_WINDOW_MINUTES * 60 * 1000);
+  const recentCount = await prisma.otp.count({
+    where: { email: normalized, createdAt: { gte: windowStart } },
+  });
+
+  if (recentCount >= RATE_LIMIT_COUNT) {
+    return { success: false, message: "Too many attempts. Try again later." };
+  }
+
+  const code = generateCode();
+  const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
+
+  await prisma.otp.create({ data: { email: normalized, otp: code, expiresAt } });
+  await sendEmail(normalized, code);
+  return { success: true };
+}
+
+export async function verifyOtp(
+  email: string,
+  otp: string
+): Promise<{ valid: true } | { valid: false; message: string }> {
+  const normalized = email.trim().toLowerCase();
+  const record = await prisma.otp.findFirst({
+    where: { email: normalized, otp },
+    orderBy: { createdAt: "desc" },
+  });
+
+  if (!record) return { valid: false, message: "Invalid or expired code." };
+  if (record.expiresAt < new Date()) return { valid: false, message: "Code has expired." };
+
+  await prisma.otp.deleteMany({ where: { email: normalized } });
+  return { valid: true };
+}
