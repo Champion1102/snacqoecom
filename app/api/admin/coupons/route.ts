@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth";
-import type { CouponType } from "@prisma/client";
+
+type CouponType = "PERCENT" | "FIXED" | "FREE_SHIPPING";
 
 export async function GET(req: NextRequest) {
   try {
