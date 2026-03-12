@@ -1,5 +1,6 @@
 "use client";
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState } from "react";
+import useSWR from "swr";
 import { ProductCard } from "@/components/ProductCard";
 import { CategoryFilter } from "@/components/CategoryFilter";
 import type { Product } from "@/types/product";
@@ -7,6 +8,8 @@ import { getCategories } from "@/api/categories";
 import { getProducts, formatPrice, type ProductResponse } from "@/api/products";
 import { addCartItem } from "@/api/cart";
 import { useCart } from "@/contexts/CartContext";
+
+const SHOP_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes – don't refetch when revisiting /shop within this window
 
 function mapProduct(p: ProductResponse): Product {
   const sortedImages = [...(p.images ?? [])].sort(
@@ -43,47 +46,56 @@ function mapProduct(p: ProductResponse): Product {
 }
 
 export default function ShopPage() {
-  const [categories, setCategories] = useState<{ id: string; label: string }[]>([
-    { id: "all", label: "ALL" },
-  ]);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState("all");
-  const { refreshCart } = useCart();
+  const { refreshCart, setCartFromResponse, optimisticIncrement } = useCart();
 
-  useEffect(() => {
-    getCategories()
-      .then(({ categories: list }) => {
-        setCategories([
-          { id: "all", label: "ALL" },
-          ...list.map((c) => ({ id: c.slug, label: c.name.toUpperCase() })),
-        ]);
-      })
-      .catch(() => {});
-  }, []);
+  const { data: categoriesData } = useSWR("shop-categories", getCategories, {
+    dedupingInterval: SHOP_CACHE_TTL_MS,
+    revalidateOnFocus: false,
+  });
 
-  useEffect(() => {
-    setLoading(true);
-    getProducts({
-      category: activeCategory === "all" ? undefined : activeCategory,
-    })
-      .then(({ products: list }) => setProducts(list.map(mapProduct)))
-      .catch(() => setProducts([]))
-      .finally(() => setLoading(false));
-  }, [activeCategory]);
+  const categories = useMemo(() => {
+    const list = categoriesData?.categories ?? [];
+    return [
+      { id: "all", label: "ALL" },
+      ...list.map((c) => ({ id: c.slug, label: c.name.toUpperCase() })),
+    ];
+  }, [categoriesData]);
 
+  const productCategory =
+    activeCategory === "all" ? undefined : activeCategory;
+  const {
+    data: productsData,
+    isLoading: productsLoading,
+    error: productsError,
+  } = useSWR(
+    ["shop-products", productCategory ?? "all"],
+    () => getProducts({ category: productCategory }),
+    {
+      dedupingInterval: SHOP_CACHE_TTL_MS,
+      revalidateOnFocus: false,
+    }
+  );
+
+  const products: Product[] = useMemo(
+    () => (productsData?.products ?? []).map(mapProduct),
+    [productsData]
+  );
   const filteredProducts = useMemo(() => products, [products]);
 
   const handleAddToCart = async (product: Product, variantId?: string) => {
     const id = variantId ?? product.defaultVariantId;
     if (!id) return;
+    optimisticIncrement(1);
     try {
-      await addCartItem(id, 1);
-      await refreshCart();
+      const { cart } = await addCartItem(id, 1);
+      setCartFromResponse(cart);
     } catch {
-      // show error optionally
+      refreshCart();
     }
   };
+
+  const loading = productsLoading && filteredProducts.length === 0;
 
   return (
     <div className="relative pt-8 pb-20 flex-grow">
@@ -122,9 +134,14 @@ export default function ShopPage() {
           ))}
         </div>
       )}
-      {!loading && filteredProducts.length === 0 && (
+      {!loading && filteredProducts.length === 0 && !productsError && (
         <p className="max-w-7xl mx-auto px-6 text-center text-text-chocolate/80 font-bold py-12">
           No products in this category yet.
+        </p>
+      )}
+      {productsError && (
+        <p className="max-w-7xl mx-auto px-6 text-center text-red-600 font-bold py-12">
+          Failed to load products. Try again.
         </p>
       )}
     </div>

@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo } from 'react';
+import Image from 'next/image';
 import { type MotionValue, useMotionValue, useSpring, useTransform, motion } from 'framer-motion';
 
 const TRAIL_COUNT = 12;
@@ -82,11 +83,14 @@ function CursorTrailItem({
       className="absolute left-0 top-0 will-change-transform"
       style={{ x, y, width: SIZE, height: SIZE, scale, opacity, rotate }}
     >
-      <img
+      <Image
         src={src}
         alt=""
+        width={SIZE}
+        height={SIZE}
         className="w-full h-full object-contain select-none"
         draggable={false}
+        unoptimized
       />
     </motion.div>
   );

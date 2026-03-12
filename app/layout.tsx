@@ -6,6 +6,9 @@ import { CartProvider } from "@/contexts/CartContext";
 export const metadata: Metadata = {
   title: "snacQO – High Vibe Snacks",
   description: "Grab your favorite snacks before the internet eats them all.",
+  icons: {
+    icon: "/favicon.ico",
+  },
 };
 
 export default function RootLayout({

@@ -13,7 +13,7 @@ interface ProductCardProps {
 }
 
 export function ProductCard({ product, onAddToCart, hoverRotate = 1 }: ProductCardProps) {
-  const { refreshCart, getQuantityForVariant } = useCart();
+  const { refreshCart, setCartFromResponse, optimisticIncrement, getQuantityForVariant } = useCart();
   const variants = product.variants && product.variants.length > 0 ? product.variants : [];
   const defaultId = product.defaultVariantId ?? variants[0]?.id;
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(defaultId ?? null);
@@ -30,9 +30,12 @@ export function ProductCard({ product, onAddToCart, hoverRotate = 1 }: ProductCa
   const handleAddOne = async () => {
     if (!variantForCart || isOutOfStock) return;
     setUpdating(true);
+    optimisticIncrement(1);
     try {
-      await addCartItem(variantForCart, 1);
-      await refreshCart();
+      const { cart } = await addCartItem(variantForCart, 1);
+      setCartFromResponse(cart);
+    } catch {
+      refreshCart();
     } finally {
       setUpdating(false);
     }
@@ -42,12 +45,13 @@ export function ProductCard({ product, onAddToCart, hoverRotate = 1 }: ProductCa
     if (!variantForCart || quantityInCart <= 0) return;
     setUpdating(true);
     try {
-      if (quantityInCart === 1) {
-        await removeCartItem(variantForCart);
-      } else {
-        await updateCartItemQuantity(variantForCart, quantityInCart - 1);
-      }
-      await refreshCart();
+      const res =
+        quantityInCart === 1
+          ? await removeCartItem(variantForCart)
+          : await updateCartItemQuantity(variantForCart, quantityInCart - 1);
+      setCartFromResponse(res.cart);
+    } catch {
+      refreshCart();
     } finally {
       setUpdating(false);
     }

@@ -129,7 +129,7 @@ export default function ProductDetailPage({
   const [related, setRelated] = useState<Product[]>([]);
   const [productReviews, setProductReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
-  const { refreshCart } = useCart();
+  const { refreshCart, setCartFromResponse, optimisticIncrement } = useCart();
 
   useEffect(() => {
     if (!slug) return;
@@ -182,22 +182,24 @@ export default function ProductDetailPage({
     sizeId: string,
     quantity: number
   ) => {
+    optimisticIncrement(quantity);
     try {
-      await addCartItem(sizeId, quantity);
-      await refreshCart();
+      const { cart } = await addCartItem(sizeId, quantity);
+      setCartFromResponse(cart);
     } catch {
-      // optional: toast error
+      refreshCart();
     }
   };
 
   const handleRelatedAddToCart = async (p: Product, variantId?: string) => {
     const id = variantId ?? p.defaultVariantId;
     if (!id) return;
+    optimisticIncrement(1);
     try {
-      await addCartItem(id, 1);
-      await refreshCart();
+      const { cart } = await addCartItem(id, 1);
+      setCartFromResponse(cart);
     } catch {
-      // optional: toast error
+      refreshCart();
     }
   };
 

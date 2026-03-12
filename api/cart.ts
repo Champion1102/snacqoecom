@@ -29,11 +29,11 @@ export interface CartResponse {
 }
 
 export function getCart(): Promise<CartResponse> {
-  return request<CartResponse>('/cart');
+  return request<CartResponse>('/api/cart');
 }
 
 export function addCartItem(variantId: string, quantity = 1): Promise<CartResponse> {
-  return request<CartResponse>('/cart/items', { method: 'POST', body: { variantId, quantity } });
+  return request<CartResponse>('/api/cart', { method: 'POST', body: { variantId, quantity } });
 }
 
 export function updateCartItemQuantity(variantId: string, quantity: number): Promise<CartResponse> {

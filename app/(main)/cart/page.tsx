@@ -10,6 +10,7 @@ import {
   type CartItemResponse,
 } from "@/api/cart";
 import { useCart } from "@/contexts/CartContext";
+import { getStandardShippingPaise } from "@/lib/shipping";
 import type { CartItem, CartSummary } from "@/types/cart";
 
 function formatPrice(paise: number): string {
@@ -76,12 +77,16 @@ export default function CartPage() {
       subtotalPaise += Math.round(rupees * 100 * item.quantity);
     }
     const subtotal = formatPrice(subtotalPaise);
+    const shippingPaise = getStandardShippingPaise(subtotalPaise);
+    const shippingFree = shippingPaise === 0;
+    const shipping = shippingFree ? "Free" : formatPrice(shippingPaise);
+    const totalPaise = subtotalPaise + shippingPaise;
     return {
       subtotal,
-      shipping: "Calculated at checkout",
-      shippingFree: false,
+      shipping,
+      shippingFree,
       tax: "—",
-      total: subtotal,
+      total: formatPrice(totalPaise),
     };
   }, [items]);
 

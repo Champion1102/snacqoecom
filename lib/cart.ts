@@ -28,7 +28,8 @@ export const cartItemInclude = {
 type PrismaType = typeof prisma;
 type CartWithItems = Awaited<ReturnType<PrismaType["cart"]["findFirst"]>>;
 
-async function mergeSessionCartIntoUserCart(
+/** Session wins: replace user cart contents with session cart, then remove session cart. */
+async function replaceUserCartWithSessionCart(
   userCart: NonNullable<CartWithItems>,
   sessionCart: NonNullable<CartWithItems>
 ) {
@@ -36,15 +37,11 @@ async function mergeSessionCartIntoUserCart(
   if (sessionItems.length === 0) return userCart;
 
   await prisma.$transaction(async (tx) => {
+    await tx.cartItem.deleteMany({ where: { cartId: userCart.id } });
     for (const item of sessionItems) {
-      const existing = await tx.cartItem.findUnique({
-        where: { cartId_variantId: { cartId: userCart.id, variantId: item.variantId } },
+      await tx.cartItem.create({
+        data: { cartId: userCart.id, variantId: item.variantId, quantity: item.quantity },
       });
-      if (existing) {
-        await tx.cartItem.update({ where: { id: existing.id }, data: { quantity: existing.quantity + item.quantity } });
-      } else {
-        await tx.cartItem.create({ data: { cartId: userCart.id, variantId: item.variantId, quantity: item.quantity } });
-      }
     }
     await tx.cartItem.deleteMany({ where: { cartId: sessionCart.id } });
     try {
@@ -55,11 +52,11 @@ async function mergeSessionCartIntoUserCart(
     }
   });
 
-  const merged = await prisma.cart.findFirst({
+  const replaced = await prisma.cart.findFirst({
     where: { id: userCart.id },
     include: { items: { include: cartItemInclude } },
   });
-  return merged;
+  return replaced;
 }
 
 type CartResult = Awaited<ReturnType<typeof prisma.cart.findFirst<{ include: { items: { include: typeof cartItemInclude } } }>>>;
@@ -77,7 +74,7 @@ export async function findCart(userId: string | null, sessionId: string | null) 
 
   if (userId && bySession && (bySession as unknown as { items: unknown[] }).items.length > 0) {
     if (byUser && byUser.id !== bySession.id) {
-      return mergeSessionCartIntoUserCart(byUser as NonNullable<CartWithItems>, bySession as NonNullable<CartWithItems>);
+      return replaceUserCartWithSessionCart(byUser as NonNullable<CartWithItems>, bySession as NonNullable<CartWithItems>);
     }
     if (!byUser) {
       await prisma.cart.update({ where: { id: bySession.id }, data: { userId, sessionId: null } });

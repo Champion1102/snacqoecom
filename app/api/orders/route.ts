@@ -3,17 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { optionalAuth, requireAuth } from "@/lib/auth";
 import { findCart, CART_COOKIE } from "@/lib/cart";
 import { formatDateTimeIST } from "@/utils/date";
-
-const FREE_SHIPPING_THRESHOLD_PAISE = 49_900;
-const SHIPPING_LOW_THRESHOLD_PAISE = 20_000;
-const SHIPPING_BELOW_200_PAISE = 5_000;
-const SHIPPING_200_TO_499_PAISE = 10_000;
-
-function getStandardShippingPaise(subtotalPaise: number): number {
-  if (subtotalPaise >= FREE_SHIPPING_THRESHOLD_PAISE) return 0;
-  if (subtotalPaise < SHIPPING_LOW_THRESHOLD_PAISE) return SHIPPING_BELOW_200_PAISE;
-  return SHIPPING_200_TO_499_PAISE;
-}
+import { getStandardShippingPaise } from "@/lib/shipping";
 
 function generateOrderNumber(): string {
   const part = Date.now().toString(36).toUpperCase();

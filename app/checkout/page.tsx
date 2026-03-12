@@ -24,22 +24,12 @@ import { getSettings } from "@/api/settings";
 import { useCart } from "@/contexts/CartContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { loadRazorpayScript } from "@/utils/razorpay";
+import { getStandardShippingPaise } from "@/lib/shipping";
 import type { ShippingFormData } from "@/types/checkout";
 import type { CheckoutOrderItem } from "@/types/checkout";
 
 function formatPrice(paise: number): string {
   return `₹${(paise / 100).toFixed(2)}`;
-}
-
-const FREE_SHIPPING_THRESHOLD_PAISE = 49_900;
-const SHIPPING_LOW_THRESHOLD_PAISE = 20_000;
-const SHIPPING_BELOW_200_PAISE = 5_000;
-const SHIPPING_200_TO_499_PAISE = 10_000;
-
-function getStandardShippingPaise(subtotalPaise: number): number {
-  if (subtotalPaise >= FREE_SHIPPING_THRESHOLD_PAISE) return 0;
-  if (subtotalPaise < SHIPPING_LOW_THRESHOLD_PAISE) return SHIPPING_BELOW_200_PAISE;
-  return SHIPPING_200_TO_499_PAISE;
 }
 
 function mapToCheckoutItem(item: CartItemResponse): CheckoutOrderItem {
@@ -278,9 +268,7 @@ export default function CheckoutPage() {
   const totalStr = formatPrice(totalPaise);
   const discountStr = discountPaise > 0 ? formatPrice(discountPaise) : undefined;
   const shippingStr =
-    freeShipping || isCampusDelivery
-      ? "Free"
-      : formatPrice(getStandardShippingPaise(subtotalPaise));
+    freeShipping || isCampusDelivery ? "Free" : formatPrice(shippingPaise);
 
   const handleApplyCoupon = async (code: string) => {
     setCouponMessage(null);

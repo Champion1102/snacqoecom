@@ -37,7 +37,7 @@ export function getProducts(params?: { category?: string; sort?: string }): Prom
   if (params?.category) search.set('category', params.category);
   if (params?.sort) search.set('sort', params.sort);
   const qs = search.toString();
-  return request(`/products${qs ? `?${qs}` : ''}`);
+  return request(`/api/products${qs ? `?${qs}` : ''}`);
 }
 
 export function getProductBySlug(slug: string): Promise<{ product: ProductResponse }> {
